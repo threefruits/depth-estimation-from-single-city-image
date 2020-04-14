@@ -17,6 +17,7 @@ def modify():
 
 
 def commit():
+    os.system('git add .')
     os.system('git commit -a -m test_github_streak > /dev/null 2>&1')
 
 
@@ -27,6 +28,7 @@ def set_sys_time(year, month, day):
 def trick_commit(year, month, day):
     set_sys_time(year, month, day)
     modify()
+
     commit()
 
 
