@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torchvision
+from lu_vp_detect import VPDetection
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 import numpy as np
 from PIL import Image
@@ -48,7 +49,7 @@ def im_gradient_loss(d_batch, n_pixels):
     
     return G.view(-1, n_pixels).mean(dim=1).sum()
 
-def depth_loss(preds, actual_depth):
+def sgmt_loss(preds, actual_depth):
     #preds.shape        -> [16, 1, 120, 160]
     #actual_depth.shape -> [16, 120, 160]
     n_pixels = actual_depth.shape[1]*actual_depth.shape[2]
@@ -65,7 +66,86 @@ def depth_loss(preds, actual_depth):
     term_1 = torch.pow(d.view(-1, n_pixels),2).mean(dim=1).sum() #pixel wise mean, then batch sum
     term_2 = (torch.pow(d.view(-1, n_pixels).sum(dim=1),2)/(2*(n_pixels**2))).sum()
     
-    return term_1 - term_2 + 0.1*grad_loss_term
+    return term_1 - term_2 
+
+def depth_loss(preds, actual_depth):
+    #preds.shape        -> [16, 1, 120, 160]
+    #actual_depth.shape -> [16, 120, 160]
+    n_pixels = actual_depth.shape[1]*actual_depth.shape[2]
+    
+    preds = (preds*0.225) + 0.45
+    preds = preds*255
+    preds[preds<=0] = 0.00001
+    actual_depth[actual_depth==0] = 0.00001
+    actual_depth.unsqueeze_(dim=1)
+    d = torch.log(preds) - torch.log(actual_depth)
+
+    grad_loss_term = im_gradient_loss(d, n_pixels)
+    # vp_term
+    # grad_loss_term = 0
+    term_1 = torch.pow(d.view(-1, n_pixels),2).mean(dim=1).sum() #pixel wise mean, then batch sum
+    term_2 = (torch.pow(d.view(-1, n_pixels).sum(dim=1),2)/(2*(n_pixels**2))).sum()
+    
+    return term_1 - term_2 + 0.2*grad_loss_term
+
+def depth_loss2(preds, actual_depth, vps, seg_line):
+    #preds.shape        -> [16, 1, 120, 160]
+    #actual_depth.shape -> [16, 120, 160]
+    n_pixels = actual_depth.shape[1]*actual_depth.shape[2]
+    print(preds.shape,vps.shape)
+    preds = (preds*0.225) + 0.45
+    preds = preds*255
+    preds[preds<=0] = 0.00001
+    actual_depth[actual_depth==0] = 0.00001
+    actual_depth.unsqueeze_(dim=1)
+    d = torch.log(preds) - torch.log(actual_depth)
+
+    print
+    grad_loss_term = im_gradient_loss(d, n_pixels)
+    # vp_term
+    # grad_loss_term = 0
+    term_1 = torch.pow(d.view(-1, n_pixels),2).mean(dim=1).sum() #pixel wise mean, then batch sum
+    term_2 = (torch.pow(d.view(-1, n_pixels).sum(dim=1),2)/(2*(n_pixels**2))).sum()
+    
+    return term_1 - term_2 + 0.2 * grad_loss_term
+
+def normal_loss(preds, actual_depth):
+    #preds.shape        -> [16, 1, 120, 160]
+    #actual_depth.shape -> [16, 120, 160]
+    n_pixels = actual_depth.shape[1]*actual_depth.shape[2]
+    
+    preds = (preds*0.225) + 0.45
+    preds = preds*255
+    preds[preds<=0] = 0.00001
+    actual_depth[actual_depth==0] = 0.00001
+    # actual_depth.unsqueeze_(dim=1)
+    d = preds - actual_depth
+
+    # grad_loss_term = im_gradient_loss(d, n_pixels)
+    # vp_term
+    grad_loss_term = 0
+    term_1 = torch.pow(d.view(-1, n_pixels),2).mean(dim=1).sum() #pixel wise mean, then batch sum
+    term_2 = (torch.pow(d.view(-1, n_pixels).sum(dim=1),2)/(2*(n_pixels**2))).sum()
+    
+    return term_1 - term_2 + 0.2*grad_loss_term
+
+def depth_loss_2(preds, actual_depth):
+    #preds.shape        -> [16, 1, 120, 160]
+    #actual_depth.shape -> [16, 120, 160]
+    n_pixels = actual_depth.shape[1]*actual_depth.shape[2]
+    
+    preds = (preds*0.225) + 0.45
+    preds = preds*255
+    preds[preds<=0] = 0.00001
+    actual_depth[actual_depth==0] = 0.00001
+    actual_depth.unsqueeze_(dim=1)
+    d = torch.log(preds) - torch.log(actual_depth)
+    grad_loss_term = im_gradient_loss(d, n_pixels)
+    # grad_loss_term = 0
+    term_1 = torch.pow(d.view(-1, n_pixels),2).mean(dim=1).sum() #pixel wise mean, then batch sum
+    term_2 = (torch.pow(d.view(-1, n_pixels).sum(dim=1),2)/(2*(n_pixels**2))).sum()
+    
+    return term_1 - term_2 + 0.2*grad_loss_term
 
 def print_training_loss_summary(loss, total_steps, current_epoch, n_epochs, n_batches, print_every=10):
     #prints loss at the start of the epoch, then every 10(print_every) steps taken by the optimizer
